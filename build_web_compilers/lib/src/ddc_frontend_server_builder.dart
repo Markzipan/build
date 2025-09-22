@@ -66,7 +66,7 @@ class DdcFrontendServerBuilder implements Builder {
       () => module.computeTransitiveAssets(buildStep),
     );
     final scratchSpace = await buildStep.fetchResource(scratchSpaceResource);
-    await buildStep.trackStage(
+    final changedAssets = await buildStep.trackStage(
       'EnsureAssets',
       () => scratchSpace.ensureAssets(transitiveAssets, buildStep),
     );
@@ -85,10 +85,10 @@ class DdcFrontendServerBuilder implements Builder {
     // Request from the Frontend Server exactly the JS file requested by
     // build_runner. Frontend Server's recompilation logic will avoid
     // extraneous recompilation.
-    var invalidatedFiles = [ddcEntrypointId.uri];
+    changedAssets.add(ddcEntrypointId);
     await driver.recompileAndRecord(
       sourceArg(ddcEntrypointId),
-      invalidatedFiles,
+      changedAssets.map((id) => id.uri).toList(),
       [sourceArg(jsFESOutputId)],
     );
     final outputFile = scratchSpace.fileFor(jsOutputId);
