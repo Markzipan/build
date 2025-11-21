@@ -28,6 +28,12 @@ abstract class PostProcessBuildStep {
     Encoding encoding = utf8,
   });
 
+  /// Fetches [resource].
+  ///
+  /// See the [Resource] docs for how resources are created, shared and
+  /// disposed.
+  Future<T> fetchResource<T>(Resource<T> resource);
+
   /// Marks an asset for deletion in the post process step.
   void deletePrimaryInput();
 

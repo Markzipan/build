@@ -7,6 +7,11 @@ import 'dart:convert';
 import 'package:build/build.dart';
 import 'package:build_modules/build_modules.dart';
 import 'package:glob/glob.dart';
+import 'package:path/path.dart' as p;
+
+import 'common.dart';
+
+final reloadSummaryFilePath = p.join('.dart_tool', 'reload_summary.json');
 
 /// A builder that gathers information about a web target's 'main' entrypoint.
 class WebEntrypointMarkerBuilder implements Builder {
@@ -57,5 +62,75 @@ class WebEntrypointMarkerBuilder implements Builder {
       webEntrypointAsset,
       jsonEncode(webEntrypointJson),
     );
+  }
+}
+
+/// A builder that generates a summary file required for webdev to perform hot
+/// reloads and hot restarts.
+class DdcReloadSummaryWriter implements PostProcessBuilder {
+  /// Indicates that we're targeting the DDC Library Bundle module system
+  /// running with the Frontend Server.
+  ///
+  /// This builder is a no-op if [usesWebHotReload] is not set.
+  final bool usesWebHotReload;
+
+  DdcReloadSummaryWriter({this.usesWebHotReload = false});
+
+  @override
+  final inputExtensions = const ['.dart', '.ddc.js'];
+
+  @override
+  Future<void> build(PostProcessBuildStep buildStep) async {
+    if (!usesWebHotReload) return;
+
+    final scratchSpace = await buildStep.fetchResource(scratchSpaceResource);
+    final frontendServerState = await buildStep.fetchResource(
+      frontendServerStateResource,
+    );
+    // Save the reload summary next to the entrypoint asset.
+    final ddcReloadSummaryAsset = AssetId(
+      frontendServerState.entrypointAssetId!.package,
+      ddcReloadExtension,
+    );
+
+    if (frontendServerState.reloadedSources == null) {
+      print('RECORDING ${scratchSpace.changedFilesInBuild}');
+      frontendServerState.reloadedSources = [];
+      for (final changedAsset in scratchSpace.changedFilesInBuild) {
+        // Record the recompiled library in [reloadedSources].
+        final reloadedModuleData = {
+          'src': changedAsset.uri.toFilePath(),
+          'module': ddcModuleName(changedAsset),
+          'libraries': [ddcLibraryId(changedAsset)],
+        };
+        frontendServerState.reloadedSources!.add(reloadedModuleData);
+      }
+      // Can't write this since it might already exist from a previous build.
+      // await buildStep.writeAsString(
+      //   ddcReloadSummaryAsset,
+      //   jsonEncode(frontendServerState.reloadedSources),
+      // );
+    }
+  }
+}
+
+/// A builder that generates a summary file required for webdev to perform hot
+/// reloads and hot restarts.
+class DdcReloadSummaryDeleter implements PostProcessBuilder {
+  /// Indicates that we're targeting the DDC Library Bundle module system
+  /// running with the Frontend Server.
+  ///
+  /// This builder is a no-op if [usesWebHotReload] is not set.
+  final bool usesWebHotReload;
+
+  DdcReloadSummaryDeleter({this.usesWebHotReload = false});
+
+  @override
+  final inputExtensions = const ['ddc.reload.json'];
+
+  @override
+  Future<void> build(PostProcessBuildStep buildStep) async {
+    if (!usesWebHotReload) return;
+    buildStep.deletePrimaryInput();
   }
 }

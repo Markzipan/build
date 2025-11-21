@@ -96,6 +96,13 @@ Builder sdkJsCompile(BuilderOptions options) {
   );
 }
 
+PostProcessBuilder ddcReloadSummaryWriter(BuilderOptions options) {
+  _ensureSameDdcHotReloadOptions(options);
+  return DdcReloadSummaryWriter(
+    usesWebHotReload: _readWebHotReloadOption(options),
+  );
+}
+
 // Dart2js related builders
 Builder dart2jsMetaModuleBuilder(BuilderOptions options) =>
     MetaModuleBuilder.forOptions(dart2jsPlatform, options);

@@ -16,6 +16,7 @@ class PostProcessBuildStepImpl implements PostProcessBuildStep {
   final AssetId inputId;
 
   final SingleStepReaderWriter _readerWriter;
+  final ResourceManager _resourceManager;
   final void Function(AssetId) _addAsset;
   final void Function(AssetId) _deleteAsset;
 
@@ -25,6 +26,7 @@ class PostProcessBuildStepImpl implements PostProcessBuildStep {
   PostProcessBuildStepImpl(
     this.inputId,
     this._readerWriter,
+    this._resourceManager,
     this._addAsset,
     this._deleteAsset,
   );
@@ -34,6 +36,11 @@ class PostProcessBuildStepImpl implements PostProcessBuildStep {
       inputId == id
           ? _readerWriter.digest(id)
           : Future.error(InvalidInputException(id));
+
+  @override
+  Future<T> fetchResource<T>(Resource<T> resource) {
+    return _resourceManager.fetch(resource);
+  }
 
   @override
   Future<List<int>> readInputAsBytes() => _readerWriter.readAsBytes(inputId);

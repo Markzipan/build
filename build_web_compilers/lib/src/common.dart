@@ -16,6 +16,7 @@ final jsSourceMapExtension = '.ddc.js.map';
 final metadataExtension = '.ddc.js.metadata';
 final symbolsExtension = '.ddc.js.symbols';
 final fullKernelExtension = '.ddc.full.dill';
+const ddcReloadExtension = '.ddc.reload.json';
 
 final defaultAnalysisOptionsId = AssetId(
   'build_modules',

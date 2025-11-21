@@ -728,6 +728,7 @@ class Build {
       input,
       stepReaderWriter,
       logger,
+      resourceManager: resourceManager,
       addAsset: (assetId) {
         if (assetGraph.contains(assetId)) {
           throw InvalidOutputException(assetId, 'Asset already exists');

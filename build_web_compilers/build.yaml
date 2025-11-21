@@ -98,6 +98,7 @@ builders:
       - .ddc.module
     applies_builders:
       - build_web_compilers:ddc_modules
+      - build_web_compilers:ddc_reload_summary_writer
       # This isn't really the best place to apply these, but it is the only
       # place we can (its the only builder which runs on all packages).
       - build_web_compilers:dart2js_modules
@@ -177,6 +178,12 @@ post_process_builders:
     defaults:
       release_options:
         filter_outputs: true
+  ddc_reload_summary_writer:
+    import: "package:build_web_compilers/builders.dart"
+    builder_factory: ddcReloadSummaryWriter
+    defaults:
+      release_options:
+        enabled: true
   dart_source_cleanup:
     import: "package:build_web_compilers/builders.dart"
     builder_factory: dartSourceCleanup

@@ -226,6 +226,7 @@ class PersistentFrontendServer {
 
   Future<CompilerOutput?> compile(String entrypoint) async {
     _stdoutHandler.reset();
+    print("FES compile $entrypoint");
     _stdinController.add('compile $entrypoint');
     return await _stdoutHandler.compilerOutput!.future;
   }
@@ -237,6 +238,7 @@ class PersistentFrontendServer {
   ) async {
     _stdoutHandler.reset();
     final inputKey = const Uuid().v4();
+    print("FES recompile $entrypoint ${invalidatedFiles.toList()}");
     _stdinController.add('recompile $entrypoint $inputKey');
     for (final file in invalidatedFiles) {
       _stdinController.add(file.toString());

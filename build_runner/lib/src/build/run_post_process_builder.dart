@@ -20,13 +20,16 @@ Future<void> runPostProcessBuilder(
   AssetId inputId,
   SingleStepReaderWriter readerWriter,
   Logger logger, {
+  ResourceManager? resourceManager,
   required void Function(AssetId) addAsset,
   required void Function(AssetId) deleteAsset,
 }) async {
+  final resources = resourceManager ?? ResourceManager();
   await BuildLogLogger.scopeLogAsync(() async {
     final buildStep = PostProcessBuildStepImpl(
       inputId,
       readerWriter,
+      resources,
       addAsset,
       deleteAsset,
     );
