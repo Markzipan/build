@@ -14,6 +14,8 @@ import 'package:build_daemon/data/build_request.dart';
 import 'package:build_daemon/data/build_status.dart';
 import 'package:build_daemon/data/build_target.dart';
 import 'package:build_daemon/data/build_target_request.dart';
+import 'package:build_daemon/data/evaluate_expression_request.dart';
+import 'package:build_daemon/data/evaluate_expression_response.dart';
 import 'package:build_daemon/data/serializers.dart';
 import 'package:build_daemon/data/server_log.dart';
 import 'package:build_daemon/src/fakes/fake_change_provider.dart';
@@ -95,7 +97,7 @@ void main() {
       addTearDown(interstedClient.sink.close);
       addTearDown(interestedEvents.close);
 
-      // Register default client, not intersted in changes
+      // Register default client, not interested in changes
       client.sink.add(
         jsonEncode(
           serializers.serialize(
@@ -146,6 +148,32 @@ void main() {
         ),
       );
     });
+    test('can handle EvaluateExpressionRequests', () async {
+      final request = EvaluateExpressionRequest(
+        isolateId: '1',
+        libraryUri: 'org-dartlang-app:///web/main.dart',
+        scriptUri: 'web/main.dart',
+        line: 10,
+        column: 1,
+        jsModules: {},
+        jsFrameValues: {},
+        moduleName: 'web/main.dart',
+        expression: 'x + 1',
+      );
+
+      client.sink.add(jsonEncode(request.toJson()));
+
+      await expectLater(
+        controller.stream,
+        emitsThrough(
+          isA<EvaluateExpressionResponse>().having(
+            (e) => e.result,
+            'result',
+            'Result for x + 1',
+          ),
+        ),
+      );
+    });
   });
 }
 
@@ -163,7 +191,15 @@ IOWebSocketChannel _createClient(
 ) {
   final client = IOWebSocketChannel.connect('ws://localhost:$port');
   client.stream.listen((data) {
-    final message = serializers.deserialize(jsonDecode(data as String));
+    final json = jsonDecode(data as String);
+    if (json is Map<String, dynamic> &&
+        json.containsKey('result') &&
+        json.containsKey('isError')) {
+      final response = EvaluateExpressionResponse.fromJson(json);
+      controller.add(response);
+      return;
+    }
+    final message = serializers.deserialize(json);
     controller.add(message);
   });
   return client;

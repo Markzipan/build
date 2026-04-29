@@ -21,6 +21,7 @@ import '../daemon_builder.dart';
 import '../data/build_request.dart';
 import '../data/build_target.dart';
 import '../data/build_target_request.dart';
+import '../data/evaluate_expression_request.dart';
 import '../data/serializers.dart';
 import '../data/server_log.dart';
 import '../data/shutdown_notification.dart';
@@ -77,13 +78,36 @@ class Server {
     final handler = webSocketHandler((WebSocketChannel channel, _) async {
       channel.stream.listen(
         (message) async {
-          dynamic request;
+          dynamic decoded;
           try {
-            request = _serializers.deserialize(jsonDecode(message as String));
+            decoded = jsonDecode(message as String);
           } catch (e, s) {
             _logMessage(
               Level.WARNING,
               'Unable to parse message: $message',
+              e,
+              s,
+            );
+            return;
+          }
+
+          // Handle expression evaluation requests separately.
+          if (decoded case {'type': 'EvaluateExpressionRequest'}) {
+            final request = EvaluateExpressionRequest.fromJson(
+              Map<String, dynamic>.from(decoded),
+            );
+            final response = await _builder.evaluateExpression(request);
+            channel.sink.add(jsonEncode(response.toJson()));
+            return;
+          }
+
+          dynamic request;
+          try {
+            request = _serializers.deserialize(decoded);
+          } catch (e, s) {
+            _logMessage(
+              Level.WARNING,
+              'Unable to deserialize message: $message',
               e,
               s,
             );
