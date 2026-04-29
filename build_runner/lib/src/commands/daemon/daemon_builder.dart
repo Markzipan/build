@@ -3,6 +3,8 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:build/build.dart';
 import 'package:build_daemon/change_provider.dart';
@@ -10,8 +12,12 @@ import 'package:build_daemon/constants.dart';
 import 'package:build_daemon/daemon_builder.dart';
 import 'package:build_daemon/data/build_status.dart';
 import 'package:build_daemon/data/build_target.dart' hide OutputLocation;
+import 'package:build_daemon/data/evaluate_expression_request.dart';
+import 'package:build_daemon/data/evaluate_expression_response.dart';
 import 'package:build_daemon/data/server_log.dart';
+import 'package:build_modules/build_modules.dart';
 import 'package:built_collection/built_collection.dart';
+import 'package:path/path.dart' as p;
 import 'package:stream_transform/stream_transform.dart';
 import 'package:watcher/watcher.dart';
 
@@ -34,7 +40,6 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
   final BuildSeries buildSeries;
   final StreamController<ServerLog> _outputStreamController;
   final ChangeProvider changeProvider;
-
   Completer<void>? _buildingCompleter;
 
   @override
@@ -177,6 +182,93 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
     await buildSeries.close();
   }
 
+  @override
+  Future<EvaluateExpressionResponse> evaluateExpression(
+    EvaluateExpressionRequest request,
+  ) async {
+    final port = await _getFrontendServerPort();
+    if (port == null) {
+      return EvaluateExpressionResponse(
+        result: 'InternalError: No running Frontend Server worker found.',
+        isError: true,
+      );
+    }
+
+    return _sendExpressionToWorker(port, request);
+  }
+
+  /// Returns the port of the running Frontend Server worker via the port file
+  /// or `null` if it wasn't found.
+  Future<int?> _getFrontendServerPort() async {
+    final fesWorkerPortFile = File(
+      p.join(Directory.current.path, fesWorkerPortPath),
+    );
+
+    if (!fesWorkerPortFile.existsSync()) return null;
+    return int.parse(fesWorkerPortFile.readAsStringSync());
+  }
+
+  /// Sends a 'COMPILE_EXPRESSION_JS' request to the Frontend Server worker
+  /// and reads its compiled JS result (or compilation error).
+  ///
+  /// See: `pkg/frontend_server/lib/frontend_server.dart` in the Dart SDK.
+  Future<EvaluateExpressionResponse> _sendExpressionToWorker(
+    int port,
+    EvaluateExpressionRequest request,
+  ) async {
+    // Open a socket to the persistent Frontend Server to evaluate [request].
+    final socket = await Socket.connect(InternetAddress.loopbackIPv4, port);
+    socket.writeln(json.encode(request.toJson()));
+
+    final responseLine =
+        await socket
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .first;
+    await socket.close();
+
+    // Write to a log file to bypass logging layers
+    File('/Users/markzipan/Projects/build/worker.log').writeAsStringSync(
+      'DAEMON RECEIVED FROM WORKER: $responseLine\n',
+      mode: FileMode.append,
+    );
+
+    final compileResult = json.decode(responseLine);
+
+    if (compileResult is Map && compileResult.containsKey('error')) {
+      return EvaluateExpressionResponse(
+        result: compileResult['error'] as String,
+        isError: true,
+      );
+    }
+
+    if (compileResult case {
+      'errorCount': final int errorCount,
+      'expressionData': final String? expressionData,
+    }) {
+      if (errorCount > 0) {
+        return EvaluateExpressionResponse(
+          result: compileResult['errorMessage'] as String? ?? 'Unknown error',
+          isError: true,
+        );
+      }
+
+      if (expressionData != null) {
+        final decodedResult = utf8.decode(base64.decode(expressionData));
+        return EvaluateExpressionResponse(
+          result: decodedResult,
+          isError: false,
+        );
+      }
+    }
+
+    return EvaluateExpressionResponse(
+      result: 'Failed to read evaluation result',
+      isError: true,
+    );
+  }
+
   void _logMessage(Level level, String message) => _outputStreamController.add(
     ServerLog((b) {
       b.message = message;
@@ -218,6 +310,11 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
     required BuildPlan buildPlan,
     required DaemonOptions daemonOptions,
   }) async {
+    // Start a persistent Frontend Server worker on creation for expression
+    // evaluation and hot reload.
+    if (daemonOptions.webHotReload) {
+      await startFrontendServerWorker();
+    }
     final expectedDeletes = <AssetId>{};
     final outputStreamController = StreamController<ServerLog>(sync: true);
 

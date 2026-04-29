@@ -13,6 +13,12 @@ const webHotReloadOption = 'web-hot-reload';
 final sdkDir = p.dirname(p.dirname(Platform.resolvedExecutable));
 final packagesFilePath = p.join('.dart_tool', 'package_config.json');
 
+/// The file path containing the Frontend Server worker's port.
+///
+/// Clients (like the build daemon) use this to communicate with the worker,
+/// such as for expression evaluation.
+final fesWorkerPortPath = p.join('.dart_tool', 'build', 'fes_worker_port');
+
 final defaultAnalysisOptionsId = AssetId(
   'build_modules',
   'lib/src/analysis_options.default.yaml',
