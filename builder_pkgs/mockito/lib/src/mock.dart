@@ -15,6 +15,7 @@
 // The API in this file includes functions that return `void`, but are intended
 // to be passed as arguments to method stubs, so they must be declared to return
 // `Null` in order to not trigger `use_of_void_result` warnings in user code.
+// ignore_for_file: prefer_void_to_null
 
 import 'dart:async';
 import 'dart:collection';
@@ -545,13 +546,15 @@ T named<T extends Mock>(T mock, {String? name, int? hashCode}) =>
       .._givenHashCode = hashCode;
 
 /// Clear stubs of, and collected interactions with [mock].
-void reset(Mock mock) {
+void reset(Object? mock) {
+  mock as Mock;
   mock._realCalls.clear();
   mock._responses.clear();
 }
 
 /// Clear the collected interactions with [mock].
-void clearInteractions(Mock mock) {
+void clearInteractions(Object? mock) {
+  mock as Mock;
   mock._realCalls.clear();
 }
 

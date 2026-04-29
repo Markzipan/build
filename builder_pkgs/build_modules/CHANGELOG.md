@@ -1,5 +1,6 @@
-## 5.1.12
+## 5.1.12-wip
 
+- Allow `analyzer` 13.0.0.
 - Add support for expression evaluation to DDC's Library Bundle module system.
 - Add exports for `fesWorkerPortPath`, `persistentFrontendServer`, and `startFrontendServerWorker`.
 

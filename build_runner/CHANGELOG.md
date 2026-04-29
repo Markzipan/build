@@ -1,8 +1,20 @@
-## 2.14.1-wip
+## 2.15.0-wip
+
+- Remove `--low-resources-mode` as default memory usage has been improved. If
+  you have problems with RAM usage please file an issue.
+- Remove `--log-performance` and `--track-performance`. File an issue if you
+  have performance measurement needs not covered by the newer `--dart-aot-perf`.
+- Removed options can still be passed, they will be ignored with a warning.
+- Allow `analyzer` 13.0.0.
+- Add `--web-hot-reload` to `daemon`, which enables early initialization of the Frontend Server (used for hot reload and expression evaluation).
+
+## 2.14.1
 
 - Bug fix: fix crash if a package used to belong to a workspace but was removed
   from the workspace leaving a stale `workspace.ref` file.
-- Add `--web-hot-reload` to `daemon`, which enables early initialization of the Frontend Server (used for hot reload and expression evaluation).
+- Bug fix: the `watch` command now always does one build before exiting due to
+  a request from another `build_runner` process. Fix crashes related to request
+  before build start.
 
 ## 2.14.0
 
