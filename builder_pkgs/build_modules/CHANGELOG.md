@@ -1,3 +1,8 @@
+## 5.1.12
+
+- Add support for expression evaluation to DDC's Library Bundle module system.
+- Add exports for `fesWorkerPortPath`, `persistentFrontendServer`, and `startFrontendServerWorker`.
+
 ## 5.1.11
 
 - Allow Dart SDK 3.12.x and 3.13 prerelease.

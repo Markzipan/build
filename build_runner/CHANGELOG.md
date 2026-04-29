@@ -2,6 +2,7 @@
 
 - Bug fix: fix crash if a package used to belong to a workspace but was removed
   from the workspace leaving a stale `workspace.ref` file.
+- Add `--web-hot-reload` to `daemon`, which enables early initialization of the Frontend Server (used for hot reload and expression evaluation).
 
 ## 2.14.0
 

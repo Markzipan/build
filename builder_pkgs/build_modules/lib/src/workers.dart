@@ -153,7 +153,7 @@ Future<PersistentFrontendServer> startFrontendServerWorker() async {
     packagesFile: scratchSpace.tempDir.uri.resolve(packagesFilePath),
   );
 
-  // Start socket server to receive expression eval requests from the build daemon.
+  // Start socket server to receive expression eval requests from build daemon.
   final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   final fesWorkerPortFile = File(
     p.join(Directory.current.path, fesWorkerPortPath),
