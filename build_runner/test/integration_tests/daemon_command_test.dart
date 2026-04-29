@@ -92,6 +92,13 @@ void main() {
     );
     await differentOptionsDaemon.expect(optionsSkew);
 
+    // Start with different option (--web-hot-reload) gives an error.
+    final hotReloadOptionsDaemon = await tester.start(
+      'root_pkg',
+      'dart run build_runner daemon --force-jit --web-hot-reload',
+    );
+    await hotReloadOptionsDaemon.expect(optionsSkew);
+
     // Start client.
     var client = await BuildDaemonClient.connectUnchecked(
       p.join(tester.tempDirectory.path, 'root_pkg'),
