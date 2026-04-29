@@ -10,8 +10,13 @@ import '../build_runner_command_line.dart';
 class DaemonOptions {
   final bool logRequests;
   final BuildMode buildMode;
+  final bool webHotReload;
 
-  DaemonOptions({required this.buildMode, required this.logRequests});
+  DaemonOptions({
+    required this.buildMode,
+    required this.logRequests,
+    required this.webHotReload,
+  });
 
   static DaemonOptions parse(BuildRunnerCommandLine commandLine) {
     final buildModeValue = commandLine.buildMode;
@@ -29,6 +34,7 @@ class DaemonOptions {
     return DaemonOptions(
       logRequests: commandLine.logRequests!,
       buildMode: buildMode,
+      webHotReload: commandLine.webHotReload!,
     );
   }
 }

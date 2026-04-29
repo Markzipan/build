@@ -62,6 +62,7 @@ class BuildRunnerCommandLine {
   final bool? trackPerformance;
   final bool? verbose;
   final bool? verboseDurations;
+  final bool? webHotReload;
   final bool? workspace;
 
   CompileStrategy get compileStrategy {
@@ -97,6 +98,7 @@ class BuildRunnerCommandLine {
       trackPerformance = argResults.boolNamed(trackPerformanceOption),
       verbose = argResults.boolNamed(verboseOption),
       verboseDurations = argResults.boolNamed(verboseDurationsOption),
+      webHotReload = argResults.boolNamed('web-hot-reload'),
       // Only "build" and "watch" support --workspace, default to false for
       // other commands.
       workspace = argResults.boolNamed(workspaceOption) ?? false;
@@ -406,6 +408,14 @@ class _Daemon extends _Command<BuildRunnerCommandLine> {
         defaultsTo: false,
         negatable: false,
         help: 'Enables logging for each request to the server.',
+      )
+      ..addFlag(
+        'web-hot-reload',
+        defaultsTo: false,
+        negatable: true,
+        help:
+            'Enables early initialization of a persistent Frontend Server '
+            'worker for web hot reload.',
       );
   }
 
