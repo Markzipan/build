@@ -1,6 +1,7 @@
 ## 4.1.2-wip
 
 - Internal: remove use of `package:mockito` in test.
+- Add support for Daemon requests. Currently only `EvaluateExpressionRequest`.
 
 ## 4.1.1
 
