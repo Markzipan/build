@@ -21,7 +21,6 @@ import '../daemon_builder.dart';
 import '../data/build_request.dart';
 import '../data/build_target.dart';
 import '../data/build_target_request.dart';
-import '../data/evaluate_expression_request.dart';
 import '../data/serializers.dart';
 import '../data/server_log.dart';
 import '../data/shutdown_notification.dart';
@@ -91,15 +90,6 @@ class Server {
             return;
           }
 
-          // Handle expression evaluation requests separately.
-          if (decoded case {'type': 'EvaluateExpressionRequest'}) {
-            final request = EvaluateExpressionRequest.fromJson(
-              Map<String, dynamic>.from(decoded),
-            );
-            final response = await _builder.evaluateExpression(request);
-            channel.sink.add(jsonEncode(response.toJson()));
-            return;
-          }
 
           dynamic request;
           try {

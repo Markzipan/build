@@ -8,8 +8,6 @@ import 'package:watcher/watcher.dart' show WatchEvent;
 
 import 'data/build_status.dart';
 import 'data/build_target.dart';
-import 'data/evaluate_expression_request.dart';
-import 'data/evaluate_expression_response.dart';
 import 'data/server_log.dart';
 
 /// A builder for the daemon.
@@ -24,8 +22,4 @@ abstract class DaemonBuilder {
   Future<void> build(Set<BuildTarget> targets, Iterable<WatchEvent> changes);
 
   Future<void> stop();
-
-  Future<EvaluateExpressionResponse> evaluateExpression(
-    EvaluateExpressionRequest request,
-  );
 }

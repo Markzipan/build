@@ -9,8 +9,6 @@ import 'package:watcher/watcher.dart' show WatchEvent;
 import '../../daemon_builder.dart';
 import '../../data/build_status.dart';
 import '../../data/build_target.dart';
-import '../../data/evaluate_expression_request.dart';
-import '../../data/evaluate_expression_response.dart';
 import '../../data/server_log.dart';
 
 class FakeTestDaemonBuilder implements DaemonBuilder {
@@ -58,15 +56,5 @@ class FakeTestDaemonBuilder implements DaemonBuilder {
       _outputStreamController.close(),
       _buildsController.close(),
     ]);
-  }
-
-  @override
-  Future<EvaluateExpressionResponse> evaluateExpression(
-    EvaluateExpressionRequest request,
-  ) async {
-    return EvaluateExpressionResponse(
-      result: 'Result for ${request.expression}',
-      isError: false,
-    );
   }
 }

@@ -114,7 +114,6 @@ class BuildDaemonClient {
   final _buildResults = StreamController<BuildResults>.broadcast();
   final _shutdownNotifications =
       StreamController<ShutdownNotification>.broadcast();
-  final _responses = StreamController<Map<String, dynamic>>.broadcast();
   final Serializers _serializers;
 
   final IOWebSocketChannel _channel;
@@ -127,11 +126,6 @@ class BuildDaemonClient {
     _channel.stream
         .listen((data) {
           final json = jsonDecode(data as String);
-          if (json is Map<String, dynamic> &&
-              json['type'] == 'EvaluateExpressionResponse') {
-            _responses.add(json);
-            return;
-          }
           final message = _serializers.deserialize(json);
           if (message is ServerLog) {
             logHandler(message);
@@ -155,23 +149,6 @@ class BuildDaemonClient {
   Stream<ShutdownNotification> get shutdownNotifications =>
       _shutdownNotifications.stream;
   Future<void> get finished async => await _channel.sink.done;
-
-  /// Sends a custom JSON request to the daemon and returns its response.
-  ///
-  /// Assumes a strictly sequential request-response flow, returning the next
-  /// JSON message with a supported 'type'.
-  ///
-  /// Warning: Concurrent requests may deliver responses to the wrong callers
-  /// since they aren't matched by ID.
-  Future<Map<String, dynamic>> sendRequest(Map<String, dynamic> request) async {
-    if (request['type'] != 'EvaluateExpressionRequest') {
-      throw ArgumentError(
-        'sendRequest currently only supports EvaluateExpressionRequest',
-      );
-    }
-    _channel.sink.add(jsonEncode(request));
-    return await _responses.stream.first;
-  }
 
   /// Registers a build target to be built upon any file change.
   void registerBuildTarget(BuildTarget target) => _channel.sink.add(
