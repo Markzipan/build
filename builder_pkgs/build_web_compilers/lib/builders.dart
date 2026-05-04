@@ -25,6 +25,7 @@ Builder webEntrypointMarkerBuilder(BuilderOptions options) {
   _ensureSameDdcHotReloadOptions(options);
   return WebEntrypointMarkerBuilder(
     usesWebHotReload: _readWebHotReloadOption(options),
+    webAssetsPath: _readWebAssetsPathOption(options),
   );
 }
 
@@ -273,6 +274,10 @@ String? _readUsePrebuiltSdkFromPathOption(BuilderOptions options) {
   return options.config[_usePrebuiltSdkFromPathOption] as String?;
 }
 
+String _readWebAssetsPathOption(BuilderOptions options) {
+  return options.config[_webAssetsPathOption] as String? ?? 'web';
+}
+
 Map<String, String> _readEnvironmentOption(BuilderOptions options) {
   final environment = options.config[_environmentOption] as Map? ?? const {};
   return environment.map((key, value) => MapEntry('$key', '$value'));
@@ -289,6 +294,7 @@ const _trackUnusedInputsCompilerOption = 'track-unused-inputs';
 const _environmentOption = 'environment';
 const _webHotReloadOption = 'web-hot-reload';
 const _ddcLibraryBundleOption = 'ddc-library-bundle';
+const _webAssetsPathOption = 'web-assets-path';
 const _useUiLibrariesOption = 'use-ui-libraries';
 const _ddcKernelPathOption = 'ddc-kernel-path';
 const _librariesPathOption = 'libraries-path';
@@ -309,4 +315,5 @@ const _supportedOptions = [
   _librariesPathOption,
   _platformSdkOption,
   _usePrebuiltSdkFromPathOption,
+  _webAssetsPathOption,
 ];
