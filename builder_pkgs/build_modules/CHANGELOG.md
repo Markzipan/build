@@ -1,4 +1,8 @@
-## 5.1.12-wip
+## 5.1.13-wip
+
+- In `KernelBuilder`, add `--track-widget-creation` flag to kernel worker.
+
+## 5.1.12
 
 - Allow `analyzer` 13.0.0.
 - Add support for expression evaluation to DDC's Library Bundle module system.

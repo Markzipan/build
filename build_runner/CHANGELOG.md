@@ -1,10 +1,14 @@
-## 2.15.0-wip
+## 2.15.0
 
 - Remove `--low-resources-mode` as default memory usage has been improved. If
   you have problems with RAM usage please file an issue.
 - Remove `--log-performance` and `--track-performance`. File an issue if you
   have performance measurement needs not covered by the newer `--dart-aot-perf`.
 - Removed options can still be passed, they will be ignored with a warning.
+- Bug fix: fix crash during logging if an asset path is an invalid URI.
+- Bug fix: with `--workspace` the global options affecting build order were read
+  from the wrong package. They are now read from `build.yaml` in the workspace
+  root, like other global options.
 - Allow `analyzer` 13.0.0.
 - Add `--web-hot-reload` to `daemon`, which enables early initialization of the Frontend Server (used for hot reload and expression evaluation).
 
