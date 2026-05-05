@@ -77,27 +77,13 @@ class Server {
     final handler = webSocketHandler((WebSocketChannel channel, _) async {
       channel.stream.listen(
         (message) async {
-          dynamic decoded;
+          dynamic request;
           try {
-            decoded = jsonDecode(message as String);
+            request = _serializers.deserialize(jsonDecode(message as String));
           } catch (e, s) {
             _logMessage(
               Level.WARNING,
               'Unable to parse message: $message',
-              e,
-              s,
-            );
-            return;
-          }
-
-
-          dynamic request;
-          try {
-            request = _serializers.deserialize(decoded);
-          } catch (e, s) {
-            _logMessage(
-              Level.WARNING,
-              'Unable to deserialize message: $message',
               e,
               s,
             );

@@ -95,7 +95,7 @@ void main() {
       addTearDown(interstedClient.sink.close);
       addTearDown(interestedEvents.close);
 
-      // Register default client, not interested in changes
+      // Register default client, not intersted in changes
       client.sink.add(
         jsonEncode(
           serializers.serialize(
@@ -163,8 +163,7 @@ IOWebSocketChannel _createClient(
 ) {
   final client = IOWebSocketChannel.connect('ws://localhost:$port');
   client.stream.listen((data) {
-    final json = jsonDecode(data as String);
-    final message = serializers.deserialize(json);
+    final message = serializers.deserialize(jsonDecode(data as String));
     controller.add(message);
   });
   return client;

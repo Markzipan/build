@@ -125,8 +125,7 @@ class BuildDaemonClient {
   ) : _channel = IOWebSocketChannel.connect('ws://localhost:$port') {
     _channel.stream
         .listen((data) {
-          final json = jsonDecode(data as String);
-          final message = _serializers.deserialize(json);
+          final message = _serializers.deserialize(jsonDecode(data as String));
           if (message is ServerLog) {
             logHandler(message);
           } else if (message is BuildResults) {

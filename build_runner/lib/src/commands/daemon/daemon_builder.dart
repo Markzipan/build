@@ -11,7 +11,6 @@ import 'package:build_daemon/daemon_builder.dart';
 import 'package:build_daemon/data/build_status.dart';
 import 'package:build_daemon/data/build_target.dart' hide OutputLocation;
 import 'package:build_daemon/data/server_log.dart';
-import 'package:build_modules/build_modules.dart';
 import 'package:built_collection/built_collection.dart';
 import 'package:stream_transform/stream_transform.dart';
 import 'package:watcher/watcher.dart';
@@ -23,8 +22,10 @@ import '../../build_plan/build_filter.dart';
 import '../../build_plan/build_plan.dart';
 import '../../logging/build_log.dart';
 import '../daemon_options.dart';
-import '../watch/build_package_watcher.dart';
-import '../watch/build_packages_watcher.dart';
+import '../watch/asset_change.dart';
+import '../watch/collect_changes.dart';
+import '../watch/graph_watcher.dart';
+import '../watch/node_watcher.dart';
 import 'change_providers.dart';
 
 /// A Daemon Builder that builds with `build_runner`.
@@ -35,6 +36,7 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
   final BuildSeries buildSeries;
   final StreamController<ServerLog> _outputStreamController;
   final ChangeProvider changeProvider;
+
   Completer<void>? _buildingCompleter;
 
   @override
@@ -57,7 +59,7 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
   final _buildScriptUpdateCompleter = Completer<void>();
   Future<void> get buildScriptUpdated => _buildScriptUpdateCompleter.future;
 
-  String get _currentPackageName => _buildPlan.buildPackages.currentPackage;
+  String get _packageName => _buildPlan.packageGraph.root.name;
 
   @override
   Future<void> build(
@@ -65,8 +67,12 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
     Iterable<WatchEvent> fileChanges,
   ) async {
     final defaultTargets = targets.cast<DefaultBuildTarget>();
-    final updates =
-        fileChanges.map((change) => AssetId.parse(change.path)).toSet();
+    final changes =
+        fileChanges
+            .map<AssetChange>(
+              (change) => AssetChange(AssetId.parse(change.path), change.type),
+            )
+            .toList();
 
     final targetNames = targets.map((t) => t.target).toSet();
     _logMessage(Level.INFO, 'About to build ${targetNames.toList()}...');
@@ -90,32 +96,20 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
       if (target.buildFilters != null && target.buildFilters!.isNotEmpty) {
         buildFilters.addAll([
           for (final pattern in target.buildFilters!)
-            BuildFilter.fromArg(
-              arg: pattern,
-              currentPackage: _currentPackageName,
-            ),
+            BuildFilter.fromArg(pattern, _packageName),
         ]);
       } else {
         buildFilters
-          ..add(
-            BuildFilter.fromArg(
-              arg: 'package:*/**',
-              currentPackage: _currentPackageName,
-            ),
-          )
-          ..add(
-            BuildFilter.fromArg(
-              arg: '${target.target}/**',
-              currentPackage: _currentPackageName,
-            ),
-          );
+          ..add(BuildFilter.fromArg('package:*/**', _packageName))
+          ..add(BuildFilter.fromArg('${target.target}/**', _packageName));
       }
     }
     Iterable<AssetId>? outputs;
 
     try {
+      final mergedChanges = collectChanges([changes]);
       final result = await buildSeries.run(
-        updates,
+        mergedChanges,
         recentlyBootstrapped: false,
         buildDirs: buildDirs.build(),
         buildFilters: buildFilters.build(),
@@ -131,7 +125,7 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
       );
 
       if (interestedInOutputs) {
-        outputs = {for (final id in updates) id, ...result.outputs};
+        outputs = {for (final change in changes) change.id, ...result.outputs};
       }
 
       for (final target in targets) {
@@ -218,11 +212,6 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
     required BuildPlan buildPlan,
     required DaemonOptions daemonOptions,
   }) async {
-    // Start a persistent Frontend Server worker on creation for expression
-    // evaluation and hot reload.
-    if (daemonOptions.webHotReload) {
-      await startFrontendServerWorker();
-    }
     final expectedDeletes = <AssetId>{};
     final outputStreamController = StreamController<ServerLog>(sync: true);
 
@@ -240,9 +229,9 @@ class BuildRunnerDaemonBuilder implements DaemonBuilder {
     final buildSeries = BuildSeries(buildPlan);
 
     // Only actually used for the AutoChangeProvider.
-    Stream<List<WatchEvent>> graphEvents() => BuildPackagesWatcher(
-          buildPlan.buildPackages,
-          watch: BuildPackageWatcher.new,
+    Stream<List<WatchEvent>> graphEvents() => PackageGraphWatcher(
+          buildPlan.packageGraph,
+          watch: PackageNodeWatcher.new,
         )
         .watch()
         .debounceBuffer(
