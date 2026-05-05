@@ -142,8 +142,7 @@ PersistentFrontendServer? get persistentFrontendServer =>
 
 /// Starts a single persistent instance of the Frontend Server targeting DDC.
 ///
-/// Also starts a socket server to listen for expression evaluation requests
-/// from the build daemon.
+/// Also starts a socket server to listen for expression evaluation requests.
 Future<PersistentFrontendServer> startFrontendServerWorker() async {
   if (__persistentFrontendServer != null) return __persistentFrontendServer!;
 
@@ -169,10 +168,10 @@ Future<PersistentFrontendServer> startFrontendServerWorker() async {
   return __persistentFrontendServer = fes;
 }
 
-/// Handles a socket connection from the build daemon to the Frontend Server
-/// worker.
+/// Handles a socket connection from webdev or external tools to the Frontend
+/// Server worker for expression evaluation.
 ///
-/// Also handles 'JSON_INPUT' protocol requests from the Frontend Server.
+/// Also handles 'JSON_INPUT' protocol requests to the Frontend Server.
 /// See: `pkg/frontend_server/lib/frontend_server.dart` in the Dart SDK.
 void _handleWorkerConnection(
   Socket socket,
