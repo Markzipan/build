@@ -10,7 +10,6 @@
   from the wrong package. They are now read from `build.yaml` in the workspace
   root, like other global options.
 - Allow `analyzer` 13.0.0.
-- Add `--web-hot-reload` to `daemon`, which enables early initialization of the Frontend Server (used for hot reload and expression evaluation).
 
 ## 2.14.1
 

@@ -1,12 +1,3 @@
-## 4.1.2-wip
-
-- Internal: remove use of `package:mockito` in test.
-- Add support for Daemon requests. Currently only supports `EvaluateExpressionRequest`.
-
-## 4.1.1
-
-- Bug fix: daemon process shuts down on internal error.
-
 ## 4.1.0
 
 - Bug fix: resolve symlinks when identifying workspaces, so symlinks can't

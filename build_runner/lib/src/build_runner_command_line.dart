@@ -9,6 +9,7 @@ import 'package:args/command_runner.dart';
 import 'package:build_daemon/constants.dart';
 import 'package:built_collection/built_collection.dart';
 
+import 'bootstrap/compile_type.dart';
 import 'internal.dart';
 
 enum CommandType {
@@ -17,6 +18,7 @@ enum CommandType {
   daemon,
   run,
   serve,
+  stop,
   test,
   watch;
 
@@ -28,7 +30,7 @@ enum CommandType {
 
   /// Whether the command must be launched as a nested `build_runner` binary
   /// built with configured builders.
-  bool get requiresBuilders => this != clean;
+  bool get requiresBuilders => this != clean && this != stop;
 }
 
 /// A `build_runner` command line with arguments parsed to primitive types.
@@ -43,21 +45,30 @@ class BuildRunnerCommandLine {
   final BuiltList<String>? buildFilter;
   final String? buildMode;
   final String? config;
+  final bool? dartAotPerf;
   final BuiltList<String>? defines;
   final BuiltList<String>? enableExperiments;
   final bool? forceAot;
   final bool? forceJit;
-  final BuiltList<String>? jitVmArgs;
   final String? hostname;
+  final BuiltList<String>? jitVmArgs;
   final bool? liveReload;
-  final String? logPerformance;
   final bool? logRequests;
-  final bool? lowResourcesMode;
   final BuiltList<String>? outputs;
   final bool? release;
-  final bool? trackPerformance;
   final bool? symlink;
   final bool? verbose;
+  final bool? verboseDurations;
+  final bool? workspace;
+
+  final BuiltList<String> removedOptionsUsed;
+
+  CompileStrategy get compileStrategy {
+    if (type == CommandType.run) return CompileStrategy.commandForcesJit;
+    if (forceJit ?? false) return CompileStrategy.forceJit;
+    if (forceAot ?? false) return CompileStrategy.forceAot;
+    return CompileStrategy.tryAot;
+  }
 
   static Future<BuildRunnerCommandLine?> parse(Iterable<String> arguments) =>
       _CommandRunner().run(arguments);
@@ -68,21 +79,31 @@ class BuildRunnerCommandLine {
       buildFilter = argResults.listNamed(buildFilterOption),
       buildMode = argResults.stringNamed(buildModeFlag),
       config = argResults.stringNamed(configOption),
+      dartAotPerf = argResults.boolNamed(dartAotPerfOption),
       defines = argResults.listNamed(defineOption),
       enableExperiments = argResults.listNamed(enableExperimentOption),
       forceAot = argResults.boolNamed(forceAotOption),
       forceJit = argResults.boolNamed(forceJitOption),
-      jitVmArgs = argResults.listNamed(dartJitVmArgOption),
       hostname = argResults.stringNamed(hostnameOption),
+      jitVmArgs = argResults.listNamed(dartJitVmArgOption),
       liveReload = argResults.boolNamed(liveReloadOption),
-      logPerformance = argResults.stringNamed(logPerformanceOption),
       logRequests = argResults.boolNamed(logRequestsOption),
-      lowResourcesMode = argResults.boolNamed(lowResourcesModeOption),
       outputs = argResults.listNamed(outputOption),
       release = argResults.boolNamed(releaseOption),
-      trackPerformance = argResults.boolNamed(trackPerformanceOption),
       symlink = argResults.boolNamed(symlinkOption),
-      verbose = argResults.boolNamed(verboseOption);
+      verbose = argResults.boolNamed(verboseOption),
+      verboseDurations = argResults.boolNamed(verboseDurationsOption),
+      // Only "build" and "watch" support --workspace, default to false for
+      // other commands.
+      workspace = argResults.boolNamed(workspaceOption) ?? false,
+      removedOptionsUsed =
+          removedOptions
+              .where(
+                (option) =>
+                    argResults.options.contains(option) &&
+                    argResults.wasParsed(option),
+              )
+              .toBuiltList();
 
   String get usage {
     // Calling `usage` only works if the command has been added to a
@@ -98,6 +119,8 @@ class BuildRunnerCommandLine {
         return _run.usage;
       case CommandType.serve:
         return _serve.usage;
+      case CommandType.stop:
+        return _stop.usage;
       case CommandType.test:
         return _test.usage;
       case CommandType.watch:
@@ -125,21 +148,34 @@ extension _ArgResultsExtension on ArgResults {
 const buildFilterOption = 'build-filter';
 const configOption = 'config';
 const defineOption = 'define';
-const deleteFilesByDefaultOption = 'delete-conflicting-outputs';
 const enableExperimentOption = 'enable-experiment';
 const forceAotOption = 'force-aot';
 const forceJitOption = 'force-jit';
+const dartAotPerfOption = 'dart-aot-perf';
 const dartJitVmArgOption = 'dart-jit-vm-arg';
 const hostnameOption = 'hostname';
 const liveReloadOption = 'live-reload';
-const logPerformanceOption = 'log-performance';
 const logRequestsOption = 'log-requests';
-const lowResourcesModeOption = 'low-resources-mode';
 const outputOption = 'output';
 const releaseOption = 'release';
-const trackPerformanceOption = 'track-performance';
 const symlinkOption = 'symlink';
+const verboseDurationsOption = 'verbose-durations';
 const verboseOption = 'verbose';
+const workspaceOption = 'workspace';
+
+// Removed options, kept to not break old command lines.
+const deleteFilesByDefaultOption = 'delete-conflicting-outputs';
+const failOnSevereOption = 'fail-on-severe';
+const logPerformanceOption = 'log-performance';
+const lowResourcesModeOption = 'low-resources-mode';
+const trackPerformanceOption = 'track-performance';
+const removedOptions = [
+  deleteFilesByDefaultOption,
+  failOnSevereOption,
+  logPerformanceOption,
+  lowResourcesModeOption,
+  trackPerformanceOption,
+];
 
 /// [CommandRunner] that returns a [BuildRunnerCommandLine] without actually
 /// running it.
@@ -148,16 +184,14 @@ class _CommandRunner extends CommandRunner<BuildRunnerCommandLine> {
     : super(
         'build_runner',
         'Dart build tool.',
-        usageLineLength:
-            buildProcessState.stdio.hasTerminal
-                ? buildProcessState.stdio.terminalColumns
-                : 80,
+        usageLineLength: buildProcessState.stdio.terminalColumns,
       ) {
     addCommand(_build);
     addCommand(_clean);
     addCommand(_daemon);
     addCommand(_run);
     addCommand(_serve);
+    addCommand(_stop);
     addCommand(_test);
     addCommand(_watch);
   }
@@ -165,50 +199,38 @@ class _CommandRunner extends CommandRunner<BuildRunnerCommandLine> {
 
 final _build = _Build();
 
-class _Build extends Command<BuildRunnerCommandLine> {
+/// [Command] with `ArgParser.usageLineLength` set.
+abstract class _Command<T> extends Command<T> {
+  @override
+  final ArgParser argParser = ArgParser(
+    usageLineLength: buildProcessState.stdio.terminalColumns,
+  );
+}
+
+class _Build extends _Command<BuildRunnerCommandLine> {
   _Build() {
-    addBuildArgs(argParser, symlinksDefault: false);
+    addBuildArgs(argParser, symlinksDefault: false, supportWorkspace: true);
   }
 
   /// Adds args common to all build commands to [argParser].
   static void addBuildArgs(
     ArgParser argParser, {
     required bool symlinksDefault,
+    required bool supportWorkspace,
   }) {
     argParser
-      // No longer does anything, but accept so old usage does not fail.
-      ..addFlag(
-        deleteFilesByDefaultOption,
-        hide: true,
-        abbr: 'd',
-        negatable: false,
-      )
-      ..addFlag(
-        lowResourcesModeOption,
-        help:
-            'Reduce the amount of memory consumed by the build process. '
-            'This will slow down builds but allow them to progress in '
-            'resource constrained environments.',
-        negatable: false,
-        defaultsTo: false,
-      )
       ..addOption(
         configOption,
         help: 'Read `build.<name>.yaml` instead of the default `build.yaml`',
         abbr: 'c',
       )
       ..addFlag(
-        'fail-on-severe',
-        help: 'Deprecated argument - always enabled',
-        negatable: true,
-        defaultsTo: true,
-        hide: true,
-      )
-      ..addFlag(
         forceAotOption,
         defaultsTo: false,
         negatable: false,
-        help: 'Compiles builders with AOT mode for faster builds.',
+        help:
+            'Forces AOT compilation of builders: disables fallback to '
+            'JIT mode.',
       )
       ..addFlag(
         forceJitOption,
@@ -217,16 +239,9 @@ class _Build extends Command<BuildRunnerCommandLine> {
         help: 'Compiles builders with JIT mode.',
       )
       ..addFlag(
-        trackPerformanceOption,
-        help: r'Enables performance tracking and the /$perf page.',
-        negatable: true,
-        defaultsTo: false,
-      )
-      ..addOption(
-        logPerformanceOption,
-        help:
-            'A directory to write performance logs to, must be in the '
-            'current package. Implies `--track-performance`.',
+        verboseDurationsOption,
+        negatable: false,
+        help: 'Logs durations with greater precision.',
       )
       ..addMultiOption(
         outputOption,
@@ -264,11 +279,12 @@ class _Build extends Command<BuildRunnerCommandLine> {
       ..addMultiOption(
         buildFilterOption,
         help:
-            'An explicit filter of files to build. Relative paths and '
-            '`package:` uris are supported, including glob syntax for paths '
-            'portions (but not package names).\n\n'
-            'If multiple filters are applied then outputs matching any '
-            'filter will be built (they do not need to match all filters).',
+            'Limits which files get built. Multiple filters are ORed together. '
+            'Specify a relative path, optionally with globs, to limit to '
+            'building matching paths in the current package. '
+            'Or, use a `package:` or `asset:` URI to refer to other packages. '
+            '`package:` URIs refer only to the `lib` folder of that package. '
+            '`asset:` URIs refer to the root of that package.',
       )
       ..addMultiOption(
         enableExperimentOption,
@@ -278,10 +294,54 @@ class _Build extends Command<BuildRunnerCommandLine> {
         dartJitVmArgOption,
         help:
             'Flags to pass to `dart run` when launching the inner build '
-            'script\n.'
+            'script. '
             'For example, `--dart-jit-vm-arg "--observe" '
             '--dart-jit-vm-arg "--pause-isolates-on-start"` would start the '
             'build script with a debugger attached to it.',
+      );
+    if (Platform.isLinux) {
+      argParser.addFlag(
+        dartAotPerfOption,
+        negatable: false,
+        help: 'Run AOT-compiled builders under the `perf` profiling tool.',
+      );
+    }
+
+    if (supportWorkspace) {
+      argParser.addFlag(
+        workspaceOption,
+        defaultsTo: false,
+        negatable: false,
+        help: 'Build all packages in the current workspace.',
+      );
+    }
+
+    // Removed options.
+    argParser
+      ..addFlag(
+        deleteFilesByDefaultOption,
+        hide: true,
+        abbr: 'd',
+        negatable: false,
+      )
+      ..addFlag(
+        failOnSevereOption,
+        negatable: true,
+        defaultsTo: true,
+        hide: true,
+      )
+      ..addOption(logPerformanceOption, hide: true)
+      ..addFlag(
+        lowResourcesModeOption,
+        hide: true,
+        negatable: false,
+        defaultsTo: false,
+      )
+      ..addFlag(
+        trackPerformanceOption,
+        hide: true,
+        negatable: true,
+        defaultsTo: false,
       );
   }
 
@@ -301,13 +361,23 @@ class _Build extends Command<BuildRunnerCommandLine> {
 
 final _clean = _Clean();
 
-class _Clean extends Command<BuildRunnerCommandLine> {
+class _Clean extends _Command<BuildRunnerCommandLine> {
   @override
   String get name => 'clean';
 
   @override
   String get description =>
-      'Deletes the build cache. The next build will be a full build.';
+      'Deletes the package or workspace build cache. '
+      'The next build will be a full build.';
+
+  _Clean() {
+    argParser.addFlag(
+      workspaceOption,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Deletes the `--workspace` build cache.',
+    );
+  }
 
   @override
   Future<BuildRunnerCommandLine> run() async =>
@@ -316,7 +386,7 @@ class _Clean extends Command<BuildRunnerCommandLine> {
 
 final _daemon = _Daemon();
 
-class _Daemon extends Command<BuildRunnerCommandLine> {
+class _Daemon extends _Command<BuildRunnerCommandLine> {
   @override
   String get description => 'Starts the build daemon.';
 
@@ -327,7 +397,11 @@ class _Daemon extends Command<BuildRunnerCommandLine> {
   String get name => 'daemon';
 
   _Daemon() {
-    _Build.addBuildArgs(argParser, symlinksDefault: false);
+    _Build.addBuildArgs(
+      argParser,
+      symlinksDefault: false,
+      supportWorkspace: false,
+    );
     argParser
       ..addOption(
         buildModeFlag,
@@ -349,9 +423,13 @@ class _Daemon extends Command<BuildRunnerCommandLine> {
 
 final _run = _Run();
 
-class _Run extends Command<BuildRunnerCommandLine> {
+class _Run extends _Command<BuildRunnerCommandLine> {
   _Run() {
-    _Build.addBuildArgs(argParser, symlinksDefault: false);
+    _Build.addBuildArgs(
+      argParser,
+      symlinksDefault: false,
+      supportWorkspace: false,
+    );
   }
 
   @override
@@ -372,9 +450,13 @@ class _Run extends Command<BuildRunnerCommandLine> {
 
 final _serve = _Serve();
 
-class _Serve extends Command<BuildRunnerCommandLine> {
+class _Serve extends _Command<BuildRunnerCommandLine> {
   _Serve() {
-    _Build.addBuildArgs(argParser, symlinksDefault: false);
+    _Build.addBuildArgs(
+      argParser,
+      symlinksDefault: false,
+      supportWorkspace: false,
+    );
     argParser
       ..addOption(
         hostnameOption,
@@ -412,9 +494,13 @@ class _Serve extends Command<BuildRunnerCommandLine> {
 
 final _test = _Test();
 
-class _Test extends Command<BuildRunnerCommandLine> {
+class _Test extends _Command<BuildRunnerCommandLine> {
   _Test() {
-    _Build.addBuildArgs(argParser, symlinksDefault: !Platform.isWindows);
+    _Build.addBuildArgs(
+      argParser,
+      symlinksDefault: !Platform.isWindows,
+      supportWorkspace: false,
+    );
   }
 
   @override
@@ -435,9 +521,13 @@ class _Test extends Command<BuildRunnerCommandLine> {
 
 final _watch = _Watch();
 
-class _Watch extends Command<BuildRunnerCommandLine> {
+class _Watch extends _Command<BuildRunnerCommandLine> {
   _Watch() {
-    _Build.addBuildArgs(argParser, symlinksDefault: false);
+    _Build.addBuildArgs(
+      argParser,
+      symlinksDefault: false,
+      supportWorkspace: true,
+    );
   }
 
   @override
@@ -452,4 +542,28 @@ class _Watch extends Command<BuildRunnerCommandLine> {
   @override
   Future<BuildRunnerCommandLine> run() async =>
       BuildRunnerCommandLine(CommandType.watch, argResults!);
+}
+
+final _stop = _Stop();
+
+class _Stop extends _Command<BuildRunnerCommandLine> {
+  @override
+  String get name => 'stop';
+
+  @override
+  String get description =>
+      'Stops `watch` and `serve` commands in the same package or workspace.';
+
+  _Stop() {
+    argParser.addFlag(
+      workspaceOption,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Stop `build_runner` in all packages in the current workspace.',
+    );
+  }
+
+  @override
+  Future<BuildRunnerCommandLine> run() async =>
+      BuildRunnerCommandLine(CommandType.stop, argResults!);
 }
